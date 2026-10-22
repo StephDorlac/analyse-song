@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Analyse d'instruments</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1c2330;--mut:#667085;--acc:#3b6fe0;--bd:#e2e5ea;--ok:#1a9d5c;--mid:#d98a00;--low:#98a2b3}
+@media(prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--fg:#e6e9ef;--mut:#98a2b3;--bd:#2c3340;--acc:#6b95f0}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px system-ui,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:24px 16px;display:grid;gap:16px}
+h1{font-size:1.4rem;margin:0}h2{font-size:1.05rem;margin:0 0 12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:16px}
+button{background:var(--acc);color:#fff;border:0;border-radius:6px;padding:8px 14px;font:inherit;cursor:pointer}
+button:disabled{opacity:.5;cursor:default}button.sec{background:transparent;color:var(--acc);border:1px solid var(--bd)}
+.drop{border:2px dashed var(--bd);border-radius:8px;padding:18px;text-align:center;color:var(--mut)}
+.drop.over{border-color:var(--acc)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.track{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--bd)}
+.track .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.tag{font-size:.75rem;padding:2px 8px;border-radius:99px;border:1px solid var(--bd);color:var(--mut)}
+.danger{color:#d92d20!important}.tag.ok{color:var(--ok);border-color:var(--ok)}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--bd)}
+th{color:var(--mut);font-weight:500;font-size:.85rem}
+.bar{height:8px;background:var(--bd);border-radius:4px;min-width:80px}.bar i{display:block;height:100%;border-radius:4px;background:var(--acc)}
+.lv{font-weight:600}.lv.é{color:var(--ok)}.lv.m{color:var(--mid)}.lv.f{color:var(--low)}
+.tabs.main{margin:0}.tabs{display:flex;gap:6px;margin:12px 0;flex-wrap:wrap}.tabs button{background:transparent;color:var(--fg);border:1px solid var(--bd)}
+.tabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.meta{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:.9rem}.meta dt{color:var(--mut)}.meta dd{margin:0;word-break:break-all}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;width:100%}.opt select{width:100%;margin:4px 0}.opt p{margin:4px 0 0}.help{margin-top:10px;padding:10px 12px;border-left:3px solid var(--acc);background:var(--bg);border-radius:4px;font-size:.88rem;color:var(--mut)}.help b{color:var(--fg)}.mrow{display:grid;grid-template-columns:minmax(110px,200px) 1fr auto;gap:8px;margin-bottom:6px}.mrow input[type=text]{padding:6px;border-radius:6px;border:1px solid var(--bd);background:var(--card);color:var(--fg);font:inherit;min-width:0}.mrow.del input{text-decoration:line-through;opacity:.5}.err{color:#d92d20}.muted{color:var(--mut);font-size:.85rem}select{padding:6px;border-radius:6px;border:1px solid var(--bd);background:var(--card);color:var(--fg);font:inherit}input[type=number]{width:80px;padding:6px;border-radius:6px;border:1px solid var(--bd);background:var(--card);color:var(--fg)}
+</style></head><body><main>
+<h1>Analyse audio</h1>
+<nav class="tabs main" id="nav"><button class="on" data-t="analyse">Analyse des instruments</button><button data-t="midi">Génération MIDI</button><button data-t="score">Partition</button><button data-t="meta">Métadonnées</button></nav>
+<div id="tab-analyse" class="tabc">
+
+<section class="card"><h2>1. Choisir des fichiers</h2>
+ <div class="drop" id="drop">Glisser des fichiers MP3 / WAV ici, ou <button class="sec" id="pick">parcourir…</button>
+ <input type="file" id="file" accept=".mp3,.wav" multiple hidden></div>
+ <div id="tracks" style="margin-top:12px"></div>
+ <div id="player" hidden style="margin-top:8px"><div class="muted" id="ptitle"></div><audio controls id="paudio" style="width:100%"></audio></div>
+ <div class="row" style="margin-top:12px">
+  <label><b>Seuil de confiance</b> <input type="number" id="seuil" value="0.10" min="0.01" max="0.9" step="0.01"></label>
+  <label title="Whisper transcrit la piste voix en texte (≈ 30 s par morceau). Ignoré si aucune voix n'est détectée."><input type="checkbox" id="lyr" checked> Transcrire les paroles</label>
+  <button id="go" disabled>Analyser la sélection</button>
+  <span id="msg" class="muted"></span>
+ </div>
+ <div class="help" id="hseuil"></div>
+</section>
+
+<section class="card" id="res" hidden><h2 id="rt"></h2><div id="rb"></div></section>
+</div>
+
+<div id="tab-midi" class="tabc" hidden>
+<section class="card"><h2>Générer un fichier MIDI</h2>
+ <p class="muted">Un seul fichier <code>.mid</code> par titre (voix, basse, autres instruments, batterie). Seuls les morceaux déjà analysés sont proposés : le MIDI part de leurs pistes séparées.</p>
+ <div id="mtracks"></div>
+ <div class="row" style="margin-top:12px">
+  <div class="opts">
+   <div class="opt"><label for="mver"><b>Timing des notes</b></label>
+    <select id="mver"><option value="quantifie">Quantifié (calé sur la grille)</option><option value="brut">Brut (fidèle à l'interprétation)</option></select>
+    <p class="muted" id="hver"></p></div>
+   <div class="opt"><label for="mprog"><b>Instrument de la piste « autres »</b></label>
+    <select id="mprog"><option value="">Auto (d'après l'analyse)</option><option value="0">Piano</option><option value="25">Guitare acoustique</option><option value="27">Guitare électrique</option><option value="48">Cordes</option><option value="16">Orgue</option><option value="89">Pad</option></select>
+    <p class="muted" id="hprog"></p></div>
+   <div class="opt"><label><input type="checkbox" id="mctl" checked> <b>Rendu audio de contrôle</b></label>
+    <p class="muted" id="hctl"></p></div>
+  </div>
+ </div>
+ <div class="row" style="margin-top:12px"><button id="mgo" disabled>Générer le MIDI de la sélection</button><span id="mmsg" class="muted"></span></div>
+</section>
+<section class="card" id="mres" hidden><h2 id="mrt"></h2><div id="mrb"></div></section>
+</div>
+<div id="tab-score" class="tabc" hidden>
+<section class="card"><h2>Partition des pistes MIDI</h2>
+ <div class="help" style="margin:0 0 12px"><b>Lecture de la transcription sur portées.</b> La partition est construite à partir du fichier MIDI généré (onglet « Génération MIDI »), une portée par piste : voix, « autres » (piano : deux portées), basse, batterie.<br>
+ C'est une <b>aide à la lecture</b>, pas une partition d'éditeur : les notes sont celles détectées automatiquement (voix et « autres » approximatives), la tonalité est estimée, et les rythmes sont recalés sur la grille (croche en 12/8, double croche en 4/4). Les notes parasites apparaissent aussi.<br>
+ <b>Accords</b> (notation US : C, Dm, G7, Fmaj7…) : devinés temps par temps d'après les notes des pistes « autres » et basse, affichés au-dessus de la première portée ; ils peuvent se tromper (inversions, accords enrichis). <b>Paroles</b> : transcription Whisper, chaque mot est posé sous la note de la voix la plus proche de son horodatage ; certains mots peuvent manquer ou être décalés. La première ouverture d'un morceau peut prendre une minute (horodatage des mots).</div>
+ <div class="row"><label><b>Morceau</b> <select id="ssel"></select></label>
+  <label>Mesures par page <select id="sper"><option>4</option><option>8</option><option selected>16</option></select></label>
+  <label>Taille <select id="szoom"><option value="0.7" selected>Petite</option><option value="0.9">Moyenne</option><option value="1.2">Grande</option></select></label>
+  <label><input type="checkbox" id="slyr" checked> Paroles</label></div>
+ <div class="row" id="sparts" style="margin-top:8px"></div>
+ <div class="row" style="margin:12px 0"><button class="sec" id="sprev">◀ Précédent</button><span id="spos" class="muted"></span><button class="sec" id="snext">Suivant ▶</button>
+  <label>Aller à la mesure <input type="number" id="sgo" min="1" value="1" style="width:70px"></label><button class="sec" id="sgob">OK</button></div>
+ <div id="splay" hidden style="margin-bottom:10px"><div class="row"><b>Lecture</b><label><input type="checkbox" id="sfollow" checked> Tourner les pages automatiquement</label></div>
+  <audio controls preload="metadata" id="saudio" style="width:100%;margin-top:6px"></audio>
+  <p class="muted" style="margin:4px 0 0">Le morceau d'origine est joué ; la barre rouge suit la position sur la partition. Cliquer sur la ligne de temps du lecteur pour se déplacer dans le morceau.</p></div>
+ <p id="sinfo" class="muted"></p>
+ <div id="sheet" style="background:#fff;border-radius:6px;padding:8px;overflow-x:auto;min-height:120px"></div>
+</section></div>
+<div id="tab-meta" class="tabc" hidden>
+<section class="card"><h2>Éditeur de métadonnées</h2>
+ <div class="help" style="margin:0 0 12px"><b>Voir, modifier, supprimer</b> les informations incluses dans le fichier (titre, artiste, commentaire, date…). Par exemple le champ <code>comment</code> qui peut contenir « made with suno ».<br>
+ Le fichier d'origine dans <code>input/</code> n'est <b>jamais modifié</b> : « Enregistrer » crée une <b>copie corrigée</b> (l'audio n'est pas ré-encodé, donc aucune perte de qualité) que tu peux télécharger. Pour WAV, seuls les champs standards (title, artist, album, comment, date, genre…) sont conservés par le format.</div>
+ <label><b>Fichier</b> <select id="msel"></select></label>
+ <div id="meditor" style="margin-top:14px"></div>
+</section></div>
+</main>
+<script src="/static/opensheetmusicdisplay.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);let tracks=[],sel=new Set(),poll=null;
+function seuilHelp(){const v=+$('seuil').value||0.1;
+ const niv=v<=0.05?"très permissif : beaucoup d'instruments, dont de fausses détections":v<=0.15?"équilibré (valeur par défaut) : bon compromis":v<=0.3?"strict : seuls les instruments bien présents restent":"très strict : uniquement les instruments très nets, risque d'en rater";
+ $('hseuil').innerHTML=`<b>Seuil de confiance (${v.toFixed(2)}) : ${niv}.</b><br>
+ Le modèle (PANNs) écoute le morceau par tranches de 5 secondes et donne à chaque instrument un score de 0 à 1 : plus c'est proche de 1, plus il est sûr de l'entendre. Le seuil est le score minimal pour retenir un instrument.<br>
+ • <b>Dans le rapport</b> : un instrument est listé si son score atteint le seuil au moins une fois. « % du temps » = part des tranches où il atteint le seuil.<br>
+ • <b>Baisser le seuil</b> → plus d'instruments détectés, mais plus de faux positifs (un son confondu avec un autre).<br>
+ • <b>Monter le seuil</b> → liste plus courte et plus fiable, mais un instrument discret peut disparaître.<br>
+ Repères : en musique les scores sont souvent bas, 0,1 à 0,3 est déjà un signal ; au-dessus de 0,5, l'instrument est très probablement présent. Le niveau « élevé / moyen / faible » du rapport tient compte du % du temps et de la confiance moyenne.`}
+$('seuil').oninput=seuilHelp;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function load(){tracks=await (await fetch('/api/tracks')).json();draw()}
+function draw(){
+ $('tracks').innerHTML=tracks.length?tracks.map(t=>`<div class="track"><input type="checkbox" data-n="${esc(t.name)}" ${sel.has(t.name)?'checked':''}>
+ <span class="n">${esc(t.name)}</span><span class="muted">${(t.size/1e6).toFixed(1)} Mo</span>
+ <span class="tag ${t.analysed?'ok':''}">${t.analysed?'analysé':'non analysé'}</span>
+ <button class="sec" data-p="${esc(t.name)}">▶ Écouter</button>
+ ${t.analysed?`<button class="sec" data-v="${esc(t.stem)}">Voir</button>`:''}
+ <button class="sec danger" data-d="${esc(t.name)}">Supprimer</button></div>`).join(''):'<p class="muted">Aucun fichier. Ajoutez-en ci-dessus.</p>';
+ $('tracks').querySelectorAll('input').forEach(c=>c.onchange=()=>{c.checked?sel.add(c.dataset.n):sel.delete(c.dataset.n);$('go').disabled=!sel.size});
+ $('tracks').querySelectorAll('button[data-p]').forEach(b=>b.onclick=()=>{$('player').hidden=false;$('ptitle').textContent=b.dataset.p;
+  $('paudio').src='/api/audio/'+encodeURIComponent(b.dataset.p);$('paudio').play().catch(()=>{})});
+ $('tracks').querySelectorAll('button[data-v]').forEach(b=>b.onclick=()=>show(b.dataset.v));
+ $('tracks').querySelectorAll('button[data-d]').forEach(b=>b.onclick=()=>del(b.dataset.d));
+ $('go').disabled=!sel.size}
+async function upload(files){const fd=new FormData();[...files].forEach(f=>fd.append('files',f));
+ $('msg').textContent='Envoi…';const r=await (await fetch('/api/upload',{method:'POST',body:fd})).json();
+ r.forEach(n=>sel.add(n));$('msg').textContent=r.length?`${r.length} fichier(s) ajouté(s)`:'Aucun fichier MP3/WAV valide';await load()}
+$('pick').onclick=()=>$('file').click();$('file').onchange=e=>upload(e.target.files);
+const d=$('drop');d.ondragover=e=>{e.preventDefault();d.classList.add('over')};d.ondragleave=()=>d.classList.remove('over');
+d.ondrop=e=>{e.preventDefault();d.classList.remove('over');upload(e.dataTransfer.files)};
+$('go').onclick=async()=>{const r=await fetch('/api/analyse',{method:'POST',headers:{'Content-Type':'application/json'},
+ body:JSON.stringify({files:[...sel],seuil:+$('seuil').value,paroles:$('lyr').checked})});if(!r.ok){$('msg').textContent=(await r.json()).error;return}
+ $('go').disabled=true;poll=setInterval(status,1500);status()};
+async function status(){const s=await (await fetch('/api/status')).json();
+ const M=s.kind==='midi',el=$(M?'mmsg':'msg');
+ if(s.running){el.textContent=`${M?s.current:s.current} — ${s.message} (${s.done.length+Object.keys(s.errors).length}/${s.queue.length})`;return}
+ clearInterval(poll);const e=Object.entries(s.errors);
+ el.innerHTML=e.length?`<span class="err">Erreur : ${esc(e.map(x=>x[0]+' : '+x[1]).join(' | '))}</span>`:(M?'MIDI généré':'Analyse terminée');
+ await load();await loadMidi();
+ if(s.done.length){const last=s.done[s.done.length-1];M?showMidi(last):show(last.replace(/\.[^.]+$/,''))}}
+async function del(name){
+ const t=tracks.find(x=>x.name===name);
+ if(!confirm(t.analysed?`Supprimer l'analyse de « ${name} » ?`:`« ${name} » n'a pas d'analyse. Continuer ?`))return;
+ const audio=confirm(`Supprimer aussi le fichier audio « ${name} » du dossier input/ ?\n\nOK = supprimer le fichier audio\nAnnuler = garder le fichier audio`);
+ const r=await fetch('/api/track/'+encodeURIComponent(name)+(audio?'?audio=1':''),{method:'DELETE'});
+ if(!r.ok){$('msg').textContent=(await r.json().catch(()=>({}))).error||'Échec de la suppression';return}
+ sel.delete(name);if($('rt').textContent===t.stem)$('res').hidden=true;
+ $('msg').textContent=audio?'Analyse et fichier audio supprimés':'Analyse supprimée';await load()}
+const lvc=l=>l==='élevé'?'é':l==='moyen'?'m':'f';
+function tbl(rows,syn){return `<table><tr><th>Instrument</th>${syn?'<th>Niveau</th>':''}<th>Conf. moy.</th><th></th><th>Conf. max</th><th>% du temps</th>${syn?'<th>Source</th>':''}</tr>`+
+ rows.map(r=>`<tr><td>${esc(r.label)}</td>${syn?`<td class="lv ${lvc(r.niveau)}">${r.niveau}</td>`:''}<td>${r.confiance_moy}</td>
+ <td><div class="bar"><i style="width:${Math.min(100,r.confiance_moy*100*1.5)}%"></i></div></td><td>${r.confiance_max}</td><td>${r.pct_temps}</td>${syn?`<td>${r.source}</td>`:''}</tr>`).join('')+'</table>'}
+async function show(stem){const r=await (await fetch('/api/report/'+encodeURIComponent(stem))).json(),m=r.metadonnees;
+ const dur=`${Math.floor(m.duree_s/60)} min ${String(Math.floor(m.duree_s%60)).padStart(2,'0')} s`;
+ $('res').hidden=false;$('rt').textContent=r.morceau;
+ const tags=Object.entries(m.tags).map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
+ $('rb').innerHTML=`<dl class="meta"><dt>Durée</dt><dd>${dur}</dd><dt>Format</dt><dd>${m.codec}, ${m.echantillonnage_hz} Hz, ${m.canaux} canaux</dd>${tags}</dl>
+ <p><a href="/api/report/${encodeURIComponent(stem)}/md">Télécharger le rapport (.md)</a></p>
+ <details><summary><b>Écouter les pistes séparées</b></summary>
+  ${['vocals','drums','bass','other'].map(p=>`<div class="muted" style="margin-top:8px">${p}</div><audio controls preload="none" src="/api/stem/${encodeURIComponent(stem)}/${p}" style="width:100%"></audio>`).join('')}</details>
+ <div id="lyr-box"></div>
+ <div class="tabs" id="tabs"></div><div id="tb"></div>
+ <p class="muted">Seuil ${r.seuil}. « Source » = mix ou piste Demucs où le score est le meilleur ; un instrument vu seulement sur une piste isolée est moins sûr.</p>`;
+ const views={'Synthèse':()=>tbl(r.synthese,true),...Object.fromEntries(Object.entries(r.par_source).map(([k,v])=>['Piste : '+k,()=>tbl(v,false)]))};
+ const t=$('tabs');Object.keys(views).forEach((k,i)=>{const b=document.createElement('button');b.textContent=k;b.onclick=()=>{t.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');$('tb').innerHTML=views[k]()};t.append(b);if(!i)b.click()});
+ const lr=await fetch('/api/lyrics/'+encodeURIComponent(stem));
+ if(lr.ok){const L=await lr.json();$('lyr-box').innerHTML=`<details open><summary><b>Paroles</b> (transcription automatique, à vérifier)</summary>
+  <pre style="white-space:pre-wrap;font:inherit;margin:8px 0">${esc(L.texte)}</pre>
+  <a href="/api/lyrics/${encodeURIComponent(stem)}/file">Télécharger paroles.txt</a></details>`}
+ $('res').scrollIntoView({behavior:'smooth'})}
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('on',x===b));
+ document.querySelectorAll('.tabc').forEach(c=>c.hidden=c.id!=='tab-'+b.dataset.t);
+ if(b.dataset.t==='midi')loadMidi()});
+const HELP={
+ ver:{quantifie:"Chaque note est recalée sur la grille rythmique du morceau (double croche en 4/4, croche en 12/8). La partition est propre et lisible dans un logiciel de notation ou pour construire un style, mais l'interprétation « humaine » (légers décalages) est perdue.",
+      brut:"Les notes gardent leur position exacte telle que détectée dans l'audio. Le rendu sonne comme l'original, mais les notes tombent entre les temps : moins lisible en partition et moins pratique à retravailler."},
+ prog:{"":"Le programme est choisi automatiquement d'après l'analyse de la piste « autres » (guitare, cordes, piano, orgue…). Si rien de net n'est détecté, un pad est utilisé.",
+       "0":"Piano à queue (GM 0) : sonorité neutre, bien adaptée aux accords et harmonies.","25":"Guitare acoustique à cordes nylon/acier (GM 25) : accords arpégés ou grattés.",
+       "27":"Guitare électrique au son clair (GM 27) : pour des guitares électriques légèrement saturées ou propres.","48":"Ensemble de cordes (GM 48) : nappes tenues de violons/altos/violoncelles.",
+       "16":"Orgue à tirettes (GM 16) : nappes tenues de type orgue.","89":"Pad « Warm » (GM 89) : nappe synthétique douce."},
+ ctl:"Génère aussi un fichier audio (controle.wav) en jouant le MIDI avec une banque de sons General MIDI (FluidR3_GM). Il dure autant que l'original, pour comparer à l'oreille. Ce sont des sons d'ordinateur basiques, pas ceux du morceau. Décocher fait gagner du temps et ~45 Mo de disque par titre. Ne change rien au fichier .mid."};
+function helps(){$('hver').textContent=HELP.ver[$('mver').value];$('hprog').textContent=HELP.prog[$('mprog').value];$('hctl').textContent=HELP.ctl}
+$('mver').onchange=$('mprog').onchange=helps;helps();
+let mtracks=[],msel=new Set();
+async function loadMidi(){mtracks=await (await fetch('/api/midi/tracks')).json();drawMidi()}
+function drawMidi(){
+ $('mtracks').innerHTML=mtracks.length?mtracks.map(t=>`<div class="track"><input type="checkbox" data-n="${esc(t.name)}" ${msel.has(t.name)?'checked':''}>
+ <span class="n">${esc(t.name)}</span><span class="tag ${t.midi?'ok':''}">${t.midi?'MIDI généré':'pas de MIDI'}</span>
+ ${t.midi?`<button class="sec" data-v="${esc(t.stem)}">Voir</button><a href="/api/midi/${encodeURIComponent(t.stem)}/file"><button class="sec" type="button">Télécharger .mid</button></a><button class="sec danger" data-d="${esc(t.stem)}">Supprimer</button>`:''}</div>`).join('')
+ :'<p class="muted">Aucun morceau analysé. Analysez d\'abord un morceau dans l\'onglet « Analyse des instruments ».</p>';
+ $('mtracks').querySelectorAll('input').forEach(c=>c.onchange=()=>{c.checked?msel.add(c.dataset.n):msel.delete(c.dataset.n);$('mgo').disabled=!msel.size});
+ $('mtracks').querySelectorAll('button[data-v]').forEach(b=>b.onclick=()=>showMidi(b.dataset.v));
+ $('mtracks').querySelectorAll('button[data-d]').forEach(b=>b.onclick=async()=>{if(!confirm('Supprimer le fichier MIDI de « '+b.dataset.d+' » ?'))return;
+  await fetch('/api/midi/'+encodeURIComponent(b.dataset.d),{method:'DELETE'});$('mres').hidden=true;await loadMidi()});
+ $('mgo').disabled=!msel.size}
+$('mgo').onclick=async()=>{const r=await fetch('/api/midi/generate',{method:'POST',headers:{'Content-Type':'application/json'},
+ body:JSON.stringify({files:[...msel],version:$('mver').value,controle:$('mctl').checked,other_program:$('mprog').value})});
+ if(!r.ok){$('mmsg').textContent=(await r.json()).error;return}
+ $('mgo').disabled=true;poll=setInterval(status,2000);status()};
+async function showMidi(stem){const r=await fetch('/api/midi/'+encodeURIComponent(stem)+'/report');if(!r.ok)return;const j=await r.json(),t=j.tempo;
+ $('mres').hidden=false;$('mrt').textContent=j.morceau;
+ const prog={0:'piano',16:'orgue',25:'guitare acoustique',27:'guitare électrique',48:'cordes',89:'pad'}[j.programme_other]||('programme '+j.programme_other);
+ const ctl=mtracks.find(x=>x.stem===stem&&x.controle);
+ $('mrb').innerHTML=`<dl class="meta"><dt>Mesure</dt><dd>${t.meter}</dd><dt>Tempo</dt><dd>${t.bpm_temps} temps/min (${t.bpm_p5}–${t.bpm_p95})</dd>
+ <dt>Timing</dt><dd>${j.version==='brut'?'brut':'quantifié'}</dd><dt>Instrument « autres »</dt><dd>${prog}</dd></dl>
+ <table><tr><th>Piste</th><th>Notes</th></tr>${Object.entries(j.notes).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>
+ <p class="muted">Batterie : ${Object.entries(j.batterie).map(([k,v])=>k+' '+v).join(', ')}</p>
+ <p><a href="/api/midi/${encodeURIComponent(stem)}/file">Télécharger ${esc(stem)}.mid</a></p>
+ ${ctl?`<p class="muted">Rendu de contrôle (à comparer à l'original) :</p><audio controls preload="none" src="/api/midi/${encodeURIComponent(stem)}/audio" style="width:100%"></audio>`:''}
+ <p class="muted">Fiabilité : tempo et mesure bonnes ; basse et batterie correctes ; voix et « autres » approximatives.</p>`}
+// ----- Partition -----
+let osmd=null,sinfo=null,sfirst=1,snames={},stops=[],sbar=null,playing=false,building=false;
+async function scoreList(){const t=(await (await fetch('/api/midi/tracks')).json()).filter(x=>x.midi),s=$('ssel'),cur=s.value;
+ t.forEach(x=>snames[x.stem]=x.name);s.innerHTML=t.map(x=>`<option value="${esc(x.stem)}">${esc(x.stem)}</option>`).join('');if(cur&&t.some(x=>x.stem===cur))s.value=cur;
+ if(t.length)scoreLoad();else{$('sheet').innerHTML='<p class="muted" style="color:#555">Aucun MIDI généré. Générez-en un dans l\'onglet « Génération MIDI ».</p>';$('sinfo').textContent=''}}
+async function scoreLoad(){
+ $('sinfo').textContent='Construction de la partition…';$('sheet').innerHTML='';
+ const r=await fetch('/api/score/'+encodeURIComponent($('ssel').value));if(!r.ok){$('sinfo').textContent='Partition indisponible';return}
+ sinfo=await r.json();
+ const au=$('saudio');au.pause();au.src=sinfo.grille&&snames[$('ssel').value]?'/api/audio/'+encodeURIComponent(snames[$('ssel').value]):'';$('splay').hidden=!au.src;
+ const xml=await (await fetch('/api/score/'+encodeURIComponent($('ssel').value)+'/xml')).text();
+ if(!window.opensheetmusicdisplay){$('sinfo').textContent='Bibliothèque de partition introuvable (static/opensheetmusicdisplay.min.js)';return}
+ osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay($('sheet'),{autoResize:false,backend:'svg',drawTitle:false,drawPartNames:true,
+  preferredSkyBottomLineBatchCalculatorBackend:opensheetmusicdisplay.SkyBottomLineBatchCalculatorBackendType.Plain});
+ await osmd.load(xml);
+ sinfo.mesures=osmd.Sheet.SourceMeasures.length;  // nombre réel de mesures dessinables
+ $('sparts').innerHTML='<span class="muted">Portées affichées :</span>'+sinfo.parts.map((p,i)=>`<label><input type="checkbox" data-p="${i}" checked> ${esc(p.nom)}</label>`).join('');
+ $('sparts').querySelectorAll('input').forEach(c=>c.onchange=()=>scoreDraw());
+ $('sgo').max=sinfo.mesures;sfirst=1;
+ const t=sinfo.tempo;
+ $('sinfo').textContent=`${sinfo.mesure} · ${t.bpm_temps} temps/min · tonalité estimée : ${sinfo.tonalite} · ${sinfo.mesures} mesures · ${sinfo.accords} changements d'accord`+(sinfo.mots?` · paroles : ${sinfo.mots_places}/${sinfo.mots} mots placés`:'');
+ scoreDraw()}
+function scoreDraw(){if(!osmd)return;const per=+$('sper').value,last=Math.min(sinfo.mesures,sfirst+per-1);
+ sinfo.parts.forEach((p,i)=>{const on=$('sparts').querySelector(`input[data-p="${i}"]`).checked;p.indices.forEach(ix=>{if(osmd.Sheet.Instruments[ix])osmd.Sheet.Instruments[ix].Visible=on})});
+ osmd.zoom=+$('szoom').value;osmd.setOptions({drawLyrics:$('slyr').checked});
+ osmd.setOptions({drawFromMeasureNumber:sfirst,drawUpToMeasureNumber:last});
+ try{osmd.render()}catch(e){$('sheet').innerHTML='<p class="err">Erreur d\'affichage : '+esc(e.message)+'</p>'}
+ $('spos').textContent=`Mesures ${sfirst}–${last} / ${sinfo.mesures}`;$('sgo').value=sfirst;
+ $('sprev').disabled=sfirst<=1;$('snext').disabled=last>=sinfo.mesures;
+ buildStops(last);syncBar(false)}
+// Positions du curseur OSMD pour chaque instant de la page affichée : on parcourt le curseur une fois, puis on place nous-mêmes la barre.
+function buildStops(last){
+ stops=[];if(!sinfo.grille)return;
+ try{const c=osmd.cursor;c.show();c.reset();let g=0;
+  while(!c.Iterator.EndReached&&c.Iterator.CurrentMeasureIndex<sfirst-1&&g++<5000)c.next();
+  g=0;while(!c.Iterator.EndReached&&c.Iterator.CurrentMeasureIndex<=last-1&&g++<5000){
+   const el=c.cursorElement;stops.push({q:c.Iterator.CurrentSourceTimestamp.RealValue*4,x:parseFloat(el.style.left),y:parseFloat(el.style.top),h:el.height||parseFloat(el.style.height)});
+   try{c.next()}catch(e){break}}
+  c.hide();
+  const host=c.cursorElement.parentNode;
+  if(!sbar||sbar.parentNode!==host){sbar=document.createElement('div');sbar.style.cssText='position:absolute;width:3px;background:#e0302f;opacity:.85;pointer-events:none;display:none;z-index:5';host.appendChild(sbar)}
+ }catch(e){stops=[];console.warn('curseur indisponible',e)}}
+function qpm(){const [n,d]=sinfo.mesure.split('/').map(Number);return n*4/d}
+function timeToQ(t){const g=sinfo.grille;let lo=0,hi=g.length-1;
+ if(t<=g[0])return 0;if(t>=g[hi])return hi;
+ while(hi-lo>1){const m=(lo+hi)>>1;g[m]<=t?lo=m:hi=m}
+ return lo+(t-g[lo])/(g[hi]-g[lo])}
+function syncBar(auto){
+ if(!stops.length||!sbar||building)return;
+ const au=$('saudio');if(!au.src)return;
+ const q=timeToQ(au.currentTime),m=Math.floor(q/qpm())+1,per=+$('sper').value,last=Math.min(sinfo.mesures,sfirst+per-1);
+ if(m<sfirst||m>last){
+  if(auto&&$('sfollow').checked&&m<=sinfo.mesures){building=true;sfirst=m;try{scoreDraw()}finally{building=false}syncBar(false)}
+  else sbar.style.display='none';
+  return}
+ let i=stops.length-1;while(i>0&&stops[i].q>q)i--;
+ const s=stops[i];if(!s||isNaN(s.x)){sbar.style.display='none';return}
+ sbar.style.display='block';sbar.style.left=s.x+'px';sbar.style.top=s.y+'px';sbar.style.height=s.h+'px';
+ if(auto&&$('sfollow').checked&&sbar.dataset.y!==String(s.y)){sbar.dataset.y=s.y;sbar.scrollIntoView({block:'center',behavior:'smooth'})}}  // la page compte plusieurs systèmes : on suit verticalement
+function loop(){if(!playing)return;syncBar(true);requestAnimationFrame(loop)}
+(()=>{const au=$('saudio');
+ au.onplay=()=>{playing=true;loop()};au.onpause=au.onended=()=>{playing=false;syncBar(false)};
+ au.onseeked=()=>syncBar(true)})();
+$('sprev').onclick=()=>{sfirst=Math.max(1,sfirst-(+$('sper').value));scoreDraw()};
+$('snext').onclick=()=>{sfirst=Math.min(sinfo.mesures,sfirst+(+$('sper').value));scoreDraw()};
+$('sgob').onclick=()=>{sfirst=Math.min(Math.max(1,+$('sgo').value||1),sinfo.mesures);scoreDraw()};
+$('ssel').onchange=scoreLoad;$('sper').onchange=()=>scoreDraw();$('szoom').onchange=$('slyr').onchange=()=>scoreDraw();
+document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.t==='score')scoreList()}));
+// ----- Métadonnées -----
+let mdata=null,mrows=[];
+const STD=['title','artist','album','album_artist','date','genre','track','composer','comment','copyright','encoder','software'];
+async function metaList(){const t=await (await fetch('/api/tracks')).json(),s=$('msel'),cur=s.value;
+ s.innerHTML=t.map(x=>`<option>${esc(x.name)}</option>`).join('');if(cur&&t.some(x=>x.name===cur))s.value=cur;
+ if(t.length)metaLoad();else $('meditor').innerHTML='<p class="muted">Aucun fichier dans input/.</p>'}
+$('msel').onchange=()=>metaLoad();
+async function metaLoad(){const r=await fetch('/api/meta/'+encodeURIComponent($('msel').value));if(!r.ok)return;mdata=await r.json();
+ mrows=Object.entries(mdata.original.tags).map(([k,v])=>({k,v,del:false,orig:true}));metaDraw()}
+function metaDraw(msg){
+ const o=mdata.original,e=mdata.edited,d=o.duree_s,name=$('msel').value;
+ const rows=mrows.map((r,i)=>`<div class="mrow ${r.del?'del':''}"><input type="text" list="stdkeys" value="${esc(r.k)}" data-i="${i}" data-f="k" placeholder="champ">
+  <input type="text" value="${esc(r.v)}" data-i="${i}" data-f="v" placeholder="valeur"><button class="sec ${r.del?'':'danger'}" data-x="${i}">${r.del?'Rétablir':'Supprimer'}</button></div>`).join('');
+ $('meditor').innerHTML=`<p class="muted">${Math.floor(d/60)} min ${String(Math.floor(d%60)).padStart(2,'0')} s · ${o.codec}, ${o.echantillonnage_hz} Hz, ${o.canaux} canaux · ${(o.taille_octets/1e6).toFixed(1)} Mo</p>
+ <datalist id="stdkeys">${STD.map(k=>`<option value="${k}">`).join('')}</datalist>
+ ${rows||'<p class="muted">Ce fichier ne contient aucune métadonnée.</p>'}
+ <div class="row" style="margin-top:10px"><button class="sec" id="madd">+ Ajouter un champ</button><button class="sec danger" id="mall">Tout supprimer</button><button class="sec" id="mreset">Annuler les modifications</button></div>
+ <div class="row" style="margin-top:14px"><button id="msave">Enregistrer une copie corrigée</button><span id="mm" class="muted">${msg||''}</span></div>
+ ${e?`<div class="help" style="margin-top:14px"><b>Copie corrigée existante</b> (output/${esc(name.replace(/\.[^.]+$/,''))}/metadata_edit/) — champs : ${Object.keys(e.tags).length?Object.entries(e.tags).map(([k,v])=>`<code>${esc(k)}</code> = ${esc(v)}`).join(' ; '):'<i>aucun</i>'}<br>
+ <a href="/api/meta/${encodeURIComponent(name)}/download">Télécharger la copie</a> · <a href="#" id="mdelcopy">Supprimer la copie</a></div>`:''}`;
+ $('meditor').querySelectorAll('input[data-i]').forEach(i=>i.oninput=()=>{mrows[+i.dataset.i][i.dataset.f]=i.value});
+ $('meditor').querySelectorAll('button[data-x]').forEach(b=>b.onclick=()=>{const r=mrows[+b.dataset.x];if(r.orig){r.del=!r.del}else mrows.splice(+b.dataset.x,1);metaDraw()});
+ $('madd').onclick=()=>{mrows.push({k:'',v:'',del:false,orig:false});metaDraw()};
+ $('mall').onclick=()=>{if(confirm("Marquer toutes les métadonnées pour suppression ? (rien n'est écrit avant « Enregistrer »)")){mrows=mrows.filter(r=>r.orig);mrows.forEach(r=>r.del=true);metaDraw()}};
+ $('mreset').onclick=metaLoad;
+ $('msave').onclick=metaSave;
+ const dc=$('mdelcopy');if(dc)dc.onclick=async ev=>{ev.preventDefault();if(!confirm('Supprimer la copie corrigée ?'))return;
+  await fetch('/api/meta/'+encodeURIComponent(name)+'/edited',{method:'DELETE'});await metaReload('Copie supprimée')}}
+async function metaReload(msg){mdata=await (await fetch('/api/meta/'+encodeURIComponent($('msel').value))).json();metaDraw(msg)}
+async function metaSave(){
+ const tags={};for(const r of mrows){if(r.del||!r.k.trim())continue;tags[r.k.trim()]=r.v}
+ const res=await fetch('/api/meta/'+encodeURIComponent($('msel').value),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tags})});
+ if(!res.ok){$('mm').innerHTML='<span class="err">'+esc((await res.json()).error)+'</span>';return}
+ await metaReload('Copie enregistrée')}
+document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.t==='meta')metaList()}));
+seuilHelp();
+load();
+</script></body></html>
