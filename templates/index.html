@@ -25,6 +25,8 @@ th{color:var(--mut);font-weight:500;font-size:.85rem}
 .tabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .meta{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:.9rem}.meta dt{color:var(--mut)}.meta dd{margin:0;word-break:break-all}
 .opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;width:100%}.opt select{width:100%;margin:4px 0}.opt p{margin:4px 0 0}.help{margin-top:10px;padding:10px 12px;border-left:3px solid var(--acc);background:var(--bg);border-radius:4px;font-size:.88rem;color:var(--mut)}.help b{color:var(--fg)}.mrow{display:grid;grid-template-columns:minmax(110px,200px) 1fr auto;gap:8px;margin-bottom:6px}.mrow input[type=text]{padding:6px;border-radius:6px;border:1px solid var(--bd);background:var(--card);color:var(--fg);font:inherit;min-width:0}.mrow.del input{text-decoration:line-through;opacity:.5}.err{color:#d92d20}.muted{color:var(--mut);font-size:.85rem}select{padding:6px;border-radius:6px;border:1px solid var(--bd);background:var(--card);color:var(--fg);font:inherit}input[type=number]{width:80px;padding:6px;border-radius:6px;border:1px solid var(--bd);background:var(--card);color:var(--fg)}
+#sprint{display:none}.chs{display:flex;flex-wrap:wrap;gap:10px}.ch{background:#fff;color:#111;border:1px solid var(--bd);border-radius:6px;padding:4px 6px;text-align:center;font:600 .9rem system-ui,sans-serif;break-inside:avoid}.ch small{display:block;font-weight:400;color:#666;font-size:.7rem}.chh{margin:0 0 8px;font:600 1rem system-ui,sans-serif}
+@media print{@page{size:A4 landscape;margin:10mm}body{background:#fff}main{display:none}#sprint{display:block!important;position:static!important;width:auto!important}#sprint>div{page-break-after:always;break-after:page;overflow:hidden}#sprint>div:last-child{page-break-after:auto;break-after:auto}#sprint svg{display:block;max-width:100%;max-height:186mm;width:auto;height:auto}}
 </style></head><body><main>
 <h1>Analyse audio</h1>
 <nav class="tabs main" id="nav"><button class="on" data-t="analyse">Analyse des instruments</button><button data-t="midi">Génération MIDI</button><button data-t="score">Partition</button><button data-t="meta">Métadonnées</button></nav>
@@ -75,7 +77,8 @@ th{color:var(--mut);font-weight:500;font-size:.85rem}
  <div class="row"><label><b>Morceau</b> <select id="ssel"></select></label>
   <label>Mesures par page <select id="sper"><option>4</option><option>8</option><option selected>16</option></select></label>
   <label>Taille <select id="szoom"><option value="0.7" selected>Petite</option><option value="0.9">Moyenne</option><option value="1.2">Grande</option></select></label>
-  <label><input type="checkbox" id="slyr" checked> Paroles</label></div>
+  <label><input type="checkbox" id="slyr" checked> Paroles</label>
+  <button class="sec" id="spdf" title="Ouvre la fenêtre d'impression : choisir « Enregistrer au format PDF ». Seules les portées cochées sont incluses, sur tout le morceau.">Générer le PDF</button></div>
  <div class="row" id="sparts" style="margin-top:8px"></div>
  <div class="row" style="margin:12px 0"><button class="sec" id="sprev">◀ Précédent</button><span id="spos" class="muted"></span><button class="sec" id="snext">Suivant ▶</button>
   <label>Aller à la mesure <input type="number" id="sgo" min="1" value="1" style="width:70px"></label><button class="sec" id="sgob">OK</button></div>
@@ -84,6 +87,7 @@ th{color:var(--mut);font-weight:500;font-size:.85rem}
   <p class="muted" style="margin:4px 0 0">Le morceau d'origine est joué ; la barre rouge suit la position sur la partition. Cliquer sur la ligne de temps du lecteur pour se déplacer dans le morceau.</p></div>
  <p id="sinfo" class="muted"></p>
  <div id="sheet" style="background:#fff;border-radius:6px;padding:8px;overflow-x:auto;min-height:120px"></div>
+ <div id="schords" style="margin-top:14px"></div>
 </section></div>
 <div id="tab-meta" class="tabc" hidden>
 <section class="card"><h2>Éditeur de métadonnées</h2>
@@ -92,7 +96,7 @@ th{color:var(--mut);font-weight:500;font-size:.85rem}
  <label><b>Fichier</b> <select id="msel"></select></label>
  <div id="meditor" style="margin-top:14px"></div>
 </section></div>
-</main>
+</main><div id="sprint"></div>
 <script src="/static/opensheetmusicdisplay.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);let tracks=[],sel=new Set(),poll=null;
@@ -228,6 +232,7 @@ async function scoreLoad(){
  $('sgo').max=sinfo.mesures;sfirst=1;
  const t=sinfo.tempo;
  $('sinfo').textContent=`${sinfo.mesure} · ${t.bpm_temps} temps/min · tonalité estimée : ${sinfo.tonalite} · ${sinfo.mesures} mesures · ${sinfo.accords} changements d'accord`+(sinfo.mots?` · paroles : ${sinfo.mots_places}/${sinfo.mots} mots placés`:'');
+ $('schords').innerHTML=chordsHtml();
  scoreDraw()}
 function scoreDraw(){if(!osmd)return;const per=+$('sper').value,last=Math.min(sinfo.mesures,sfirst+per-1);
  sinfo.parts.forEach((p,i)=>{const on=$('sparts').querySelector(`input[data-p="${i}"]`).checked;p.indices.forEach(ix=>{if(osmd.Sheet.Instruments[ix])osmd.Sheet.Instruments[ix].Visible=on})});
@@ -237,6 +242,32 @@ function scoreDraw(){if(!osmd)return;const per=+$('sper').value,last=Math.min(si
  $('spos').textContent=`Mesures ${sfirst}–${last} / ${sinfo.mesures}`;$('sgo').value=sfirst;
  $('sprev').disabled=sfirst<=1;$('snext').disabled=last>=sinfo.mesures;
  buildStops(last);syncBar(false)}
+// Résumé des accords : clavier de piano sur 2 octaves, notes de l'accord empilées à partir de la fondamentale.
+function pianoSvg(notes){const W=11,H=46,BH=28,pos={1:0,3:1,6:3,8:4,10:5};
+ const on=new Set();let cur=-1;notes.forEach((pc,i)=>{let n=i?cur+1:pc;while(n%12!==pc)n++;on.add(n);cur=n});
+ const wh=[0,2,4,5,7,9,11],xOf=n=>{const o=Math.floor(n/12),pc=n%12;return wh.includes(pc)?(o*7+wh.indexOf(pc))*W:(o*7+pos[pc]+1)*W-3.5};
+ let g='';for(let n=0;n<24;n++)if(wh.includes(n%12))g+=`<rect x="${xOf(n)}" y="0" width="${W}" height="${H}" fill="#fff" stroke="#333"/>`;
+ for(let n=0;n<24;n++)if(!wh.includes(n%12))g+=`<rect x="${xOf(n)}" y="0" width="7" height="${BH}" fill="#222"/>`;
+ on.forEach(n=>{const w=wh.includes(n%12);g+=`<circle cx="${xOf(n)+(w?W/2:3.5)}" cy="${w?H-7:BH-7}" r="3.2" fill="#e5322d"/>`});
+ return `<svg width="${14*W}" height="${H}" viewBox="0 0 ${14*W} ${H}">${g}</svg>`}
+function chordsHtml(){const a=sinfo&&sinfo.resume_accords;if(!a||!a.length)return'';
+ return '<div class="chh">Accords du morceau (du plus joué au moins joué)</div><div class="chs">'+a.map(c=>`<div class="ch">${esc(c.nom)}${pianoSvg(c.notes)}<small>${c.fois}× · ${c.temps} temps</small></div>`).join('')+'</div>'}
+// PDF : rend tout le morceau (portées cochées uniquement) dans une zone dédiée, puis ouvre l'impression (« Enregistrer au format PDF »).
+async function scorePdf(){if(!sinfo)return;const b=$('spdf'),box=$('sprint'),old=b.textContent;b.disabled=true;b.textContent='Génération…';
+ try{const xml=await (await fetch('/api/score/'+encodeURIComponent($('ssel').value)+'/xml')).text();
+  box.innerHTML='';Object.assign(box.style,{display:'block',position:'fixed',left:'-10000px',top:0,width:'1050px',background:'#fff'});
+  const o=new opensheetmusicdisplay.OpenSheetMusicDisplay(box,{autoResize:false,backend:'svg',drawTitle:false,drawPartNames:true,drawLyrics:$('slyr').checked,
+   preferredSkyBottomLineBatchCalculatorBackend:opensheetmusicdisplay.SkyBottomLineBatchCalculatorBackendType.Plain});
+  await o.load(xml);
+  sinfo.parts.forEach((p,i)=>{const on=$('sparts').querySelector(`input[data-p="${i}"]`).checked;p.indices.forEach(ix=>{if(o.Sheet.Instruments[ix])o.Sheet.Instruments[ix].Visible=on})});
+  o.zoom=+$('szoom').value;o.setPageFormat('A4 L');o.render();
+  if(sinfo.resume_accords&&sinfo.resume_accords.length){const c=document.createElement('div');c.innerHTML=chordsHtml();box.appendChild(c)}
+  const done=()=>{box.removeAttribute('style');box.innerHTML='';window.removeEventListener('afterprint',done)};
+  window.addEventListener('afterprint',done);box.style.cssText='';box.style.display='';
+  await new Promise(r=>setTimeout(r,50));window.print()
+ }catch(e){box.innerHTML='';box.removeAttribute('style');$('sinfo').textContent='Erreur PDF : '+e.message}
+ finally{b.disabled=false;b.textContent=old}}
+$('spdf').onclick=scorePdf;
 // Positions du curseur OSMD pour chaque instant de la page affichée : on parcourt le curseur une fois, puis on place nous-mêmes la barre.
 function buildStops(last){
  stops=[];if(!sinfo.grille)return;

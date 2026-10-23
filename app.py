@@ -158,7 +158,7 @@ def score_info(stem):
     if not mid.exists():
         abort(404)
     lyr = OUTPUT / stem / "paroles.json"
-    stale = not xml.exists() or not js.exists() or xml.stat().st_mtime < mid.stat().st_mtime
+    stale = not xml.exists() or not js.exists() or xml.stat().st_mtime < max(mid.stat().st_mtime, Path(score.__file__).stat().st_mtime)
     if not stale:
         stale = "grille" not in json.loads(js.read_text(encoding="utf-8")) or (lyr.exists() and xml.stat().st_mtime < lyr.stat().st_mtime)
     if stale:

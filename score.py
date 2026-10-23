@@ -67,14 +67,35 @@ def assign_words(times, words):
         for j in range(1, m + 1):
             dt = abs(times[j - 1] - words[i - 1]["debut"])
             cost[i][j] = min(cost[i - 1][j] + SKIP, cost[i][j - 1], cost[i - 1][j - 1] + dt if dt <= 0.5 else INF)
-    out, i, j = {}, n, m
+    where, i, j = {}, n, m   # index de mot -> index de note
     while i > 0 and j > 0:
         dt = abs(times[j - 1] - words[i - 1]["debut"])
         if dt <= 0.5 and cost[i][j] == cost[i - 1][j - 1] + dt:
-            out[j - 1] = words[i - 1]["m"]; i -= 1; j -= 1
+            where[i - 1] = j - 1; i -= 1; j -= 1
         elif cost[i][j] == cost[i][j - 1]: j -= 1
         else: i -= 1
-    return out
+    # mots restés sans note (souvent le début : voix non détectée) : note libre la plus proche, entre les notes des mots voisins, à 2 s max
+    FAR, used, prev = 2.0, set(where.values()), -1
+    for w in range(n):
+        if w in where:
+            prev = where[w]; continue
+        nxt = next((where[k] for k in range(w + 1, n) if k in where), m)
+        cand = [j for j in range(prev + 1, nxt) if j not in used and abs(times[j] - words[w]["debut"]) <= FAR]
+        if cand:
+            where[w] = prev = min(cand, key=lambda j: abs(times[j] - words[w]["debut"])); used.add(prev)
+    # encore sans note (voix non transcrite) : le mot est accolé à la note du mot voisin le plus proche dans le temps, à 3 s max
+    glued = {}
+    for w in range(n - 1, -1, -1):   # de droite à gauche : une levée (« I found ») se colle à la note du mot suivant
+        if w in where:
+            continue
+        for k in (w + 1, w - 1):
+            note = where.get(k, glued.get(k))
+            if 0 <= k < n and note is not None and abs(times[note] - words[w]["debut"]) <= 3.0:
+                glued[w] = note; break
+    lyr = {}
+    for w, j in sorted({**where, **glued}.items()):
+        lyr[j] = (lyr[j] + " " if j in lyr else "") + words[w]["m"]
+    return lyr
 
 
 QUALITIES = {  # nom music21 -> (intervalles, suffixe US, pénalité de complexité)
@@ -238,7 +259,14 @@ def build_score(midi_path, out_path, info=None, segments=None):
         t2s_ = tick_to_sec(midi_path)
         qpm = sig[0] * 4 / sig[1]
         grille = [round(t2s_(int(i * PPQ)) - info["lead"], 3) for i in range(int(n_meas * qpm) + 2)]
-    return {"grille": grille, "parts": [{"nom": n, "indices": ix} for n, ix in groups.items()], "mesures": n_meas, "mesure": ts, "tonalite": f"{k.tonic.name.replace('-', 'b')} {k.mode}", "accords": len(chords), "mots": len(words), "mots_places": len(re.findall("<lyric", xml)), "secondes": round(time.time() - t0, 1)}
+    resume = {}  # accords distincts : temps joués, pitch classes (fondamentale d'abord)
+    for i, (tk, r, q) in enumerate(chords):
+        nxt = chords[i + 1][0] if i + 1 < len(chords) else int(n_meas * sig[0] * 4 / sig[1] * PPQ)
+        iv, suf, _ = QUALITIES[q]
+        c = resume.setdefault((r, q), {"nom": ((FLAT if flats else SHARP)[r] + suf).replace("-", "b"), "notes": [(r + x) % 12 for x in iv], "fois": 0, "temps": 0})
+        c["fois"] += 1; c["temps"] += (nxt - tk) // beat
+    resume = sorted(resume.values(), key=lambda c: -c["temps"])
+    return {"resume_accords": resume, "grille": grille, "parts": [{"nom": n, "indices": ix} for n, ix in groups.items()], "mesures": n_meas, "mesure": ts, "tonalite": f"{k.tonic.name.replace('-', 'b')} {k.mode}", "accords": len(chords), "mots": len(words), "mots_places": len(re.findall("<lyric", xml)), "secondes": round(time.time() - t0, 1)}
 
 
 if __name__ == "__main__":
