@@ -248,7 +248,7 @@ function pianoSvg(notes){const W=11,H=46,BH=28,pos={1:0,3:1,6:3,8:4,10:5};
  const wh=[0,2,4,5,7,9,11],xOf=n=>{const o=Math.floor(n/12),pc=n%12;return wh.includes(pc)?(o*7+wh.indexOf(pc))*W:(o*7+pos[pc]+1)*W-3.5};
  let g='';for(let n=0;n<24;n++)if(wh.includes(n%12))g+=`<rect x="${xOf(n)}" y="0" width="${W}" height="${H}" fill="#fff" stroke="#333"/>`;
  for(let n=0;n<24;n++)if(!wh.includes(n%12))g+=`<rect x="${xOf(n)}" y="0" width="7" height="${BH}" fill="#222"/>`;
- on.forEach(n=>{const w=wh.includes(n%12);g+=`<circle cx="${xOf(n)+(w?W/2:3.5)}" cy="${w?H-7:BH-7}" r="3.2" fill="#e5322d"/>`});
+ on.forEach(n=>{const w=wh.includes(n%12);g+=`<circle cx="${xOf(n)+(w?W/2:3.5)}" cy="${w?H-7:BH-7}" r="3.2" fill="${w?'#e5322d':'#fff'}" stroke="${w?'#7a1411':'#fff'}" stroke-width=".6"/>`});
  return `<svg width="${14*W}" height="${H}" viewBox="0 0 ${14*W} ${H}">${g}</svg>`}
 function chordsHtml(){const a=sinfo&&sinfo.resume_accords;if(!a||!a.length)return'';
  return '<div class="chh">Accords du morceau (du plus joué au moins joué)</div><div class="chs">'+a.map(c=>`<div class="ch">${esc(c.nom)}${pianoSvg(c.notes)}<small>${c.fois}× · ${c.temps} temps</small></div>`).join('')+'</div>'}
