@@ -200,6 +200,26 @@ def build_part(name, notes, g, flats, ts, clef_obj, drum=False, mono=False, cap=
     return part
 
 
+def chord_sequence(chords, sig, n_meas, flats, midi_path, info, segments):
+    """Accords dans l'ordre du morceau, pour la transposition : mesure, temps, fondamentale, suffixe, intervalles, paroles chantées dessus, début/fin (s) dans l'audio."""
+    beat = 720 if sig == (12, 8) else 480
+    mlen = int(sig[0] * 4 / sig[1] * PPQ)
+    words = [w for sg in (segments or []) for w in sg.get("mots", [])] if info and "lead" in info else []
+    t2s = tick_to_sec(midi_path) if info and "lead" in info else None
+    end = n_meas * mlen
+    out = []
+    for i, (tk, r, q) in enumerate(chords):
+        iv, suf, _ = QUALITIES[q]
+        nxt = chords[i + 1][0] if i + 1 < len(chords) else end
+        lyr, a, b = "", None, None
+        if t2s:
+            a, b = t2s(tk) - info["lead"], t2s(nxt) - info["lead"]
+        if words:
+            lyr = " ".join(w["m"].strip() for w in words if a <= w["debut"] < b)
+        out.append({"mesure": tk // mlen + 1, "temps": round((tk % mlen) / beat, 2), "racine": r, "duree": (nxt - tk) // beat, "suffixe": suf, "intervalles": list(iv), "paroles": lyr, "debut": None if a is None else round(a, 3), "fin": None if b is None else round(b, 3)})
+    return out
+
+
 def build_score(midi_path, out_path, info=None, segments=None):
     """segments : segments de paroles.json (avec 'mots' horodatés) ou None. info['lead'] : décalage MIDI/audio (s)."""
     t0 = time.time()
@@ -259,6 +279,7 @@ def build_score(midi_path, out_path, info=None, segments=None):
         t2s_ = tick_to_sec(midi_path)
         qpm = sig[0] * 4 / sig[1]
         grille = [round(t2s_(int(i * PPQ)) - info["lead"], 3) for i in range(int(n_meas * qpm) + 2)]
+    seq = chord_sequence(chords, sig, n_meas, flats, midi_path, info, segments)
     resume = {}  # accords distincts : temps joués, pitch classes (fondamentale d'abord)
     for i, (tk, r, q) in enumerate(chords):
         nxt = chords[i + 1][0] if i + 1 < len(chords) else int(n_meas * sig[0] * 4 / sig[1] * PPQ)
@@ -266,7 +287,7 @@ def build_score(midi_path, out_path, info=None, segments=None):
         c = resume.setdefault((r, q), {"nom": ((FLAT if flats else SHARP)[r] + suf).replace("-", "b"), "notes": [(r + x) % 12 for x in iv], "fois": 0, "temps": 0})
         c["fois"] += 1; c["temps"] += (nxt - tk) // beat
     resume = sorted(resume.values(), key=lambda c: -c["temps"])
-    return {"resume_accords": resume, "grille": grille, "parts": [{"nom": n, "indices": ix} for n, ix in groups.items()], "mesures": n_meas, "mesure": ts, "tonalite": f"{k.tonic.name.replace('-', 'b')} {k.mode}", "accords": len(chords), "mots": len(words), "mots_places": len(re.findall("<lyric", xml)), "secondes": round(time.time() - t0, 1)}
+    return {"resume_accords": resume, "accords_seq": seq, "grille": grille, "parts": [{"nom": n, "indices": ix} for n, ix in groups.items()], "mesures": n_meas, "mesure": ts, "tonalite": f"{k.tonic.name.replace('-', 'b')} {k.mode}", "accords": len(chords), "mots": len(words), "mots_places": len(re.findall("<lyric", xml)), "secondes": round(time.time() - t0, 1)}
 
 
 if __name__ == "__main__":

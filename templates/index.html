@@ -26,10 +26,12 @@ th{color:var(--mut);font-weight:500;font-size:.85rem}
 .meta{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:.9rem}.meta dt{color:var(--mut)}.meta dd{margin:0;word-break:break-all}
 .opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;width:100%}.opt select{width:100%;margin:4px 0}.opt p{margin:4px 0 0}.help{margin-top:10px;padding:10px 12px;border-left:3px solid var(--acc);background:var(--bg);border-radius:4px;font-size:.88rem;color:var(--mut)}.help b{color:var(--fg)}.mrow{display:grid;grid-template-columns:minmax(110px,200px) 1fr auto;gap:8px;margin-bottom:6px}.mrow input[type=text]{padding:6px;border-radius:6px;border:1px solid var(--bd);background:var(--card);color:var(--fg);font:inherit;min-width:0}.mrow.del input{text-decoration:line-through;opacity:.5}.err{color:#d92d20}.muted{color:var(--mut);font-size:.85rem}select{padding:6px;border-radius:6px;border:1px solid var(--bd);background:var(--card);color:var(--fg);font:inherit}input[type=number]{width:80px;padding:6px;border-radius:6px;border:1px solid var(--bd);background:var(--card);color:var(--fg)}
 #sprint{display:none}.chs{display:flex;flex-wrap:wrap;gap:10px}.ch{background:#fff;color:#111;border:1px solid var(--bd);border-radius:6px;padding:4px 6px;text-align:center;font:600 .9rem system-ui,sans-serif;break-inside:avoid}.ch small{display:block;font-weight:400;color:#666;font-size:.7rem}.chh{margin:0 0 8px;font:600 1rem system-ui,sans-serif}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:14px}.cc{background:#fff;color:#111;border:1px solid var(--bd);border-radius:6px;padding:6px 8px;break-inside:avoid}.cc{cursor:pointer}.cc.now,.ch.now{outline:3px solid #e5322d;outline-offset:-1px;border-radius:6px}.cc b{font:700 1.15rem system-ui,sans-serif}.cc small{display:block;color:#666;font-size:.72rem}.cc i{display:block;font-size:.8rem;color:#333;font-style:normal;margin-top:2px}
+#sprint>.cpdf{overflow:visible;color:#111;font-family:system-ui,sans-serif}.cpdf h1{font-size:1.3rem;margin:0 0 4px}
 @media print{@page{size:A4 landscape;margin:10mm}body{background:#fff}main{display:none}#sprint{display:block!important;position:static!important;width:auto!important}#sprint>div{page-break-after:always;break-after:page;overflow:hidden}#sprint>div:last-child{page-break-after:auto;break-after:auto}#sprint svg{display:block;max-width:100%;max-height:186mm;width:auto;height:auto}}
 </style></head><body><main>
 <h1>Analyse audio</h1>
-<nav class="tabs main" id="nav"><button class="on" data-t="analyse">Analyse des instruments</button><button data-t="midi">Génération MIDI</button><button data-t="score">Partition</button><button data-t="meta">Métadonnées</button></nav>
+<nav class="tabs main" id="nav"><button class="on" data-t="analyse">Analyse des instruments</button><button data-t="midi">Génération MIDI</button><button data-t="score">Partition</button><button data-t="chords">Accords</button><button data-t="meta">Métadonnées</button></nav>
 <div id="tab-analyse" class="tabc">
 
 <section class="card"><h2>1. Choisir des fichiers</h2>
@@ -88,6 +90,20 @@ th{color:var(--mut);font-weight:500;font-size:.85rem}
  <p id="sinfo" class="muted"></p>
  <div id="sheet" style="background:#fff;border-radius:6px;padding:8px;overflow-x:auto;min-height:120px"></div>
  <div id="schords" style="margin-top:14px"></div>
+</section></div>
+<div id="tab-chords" class="tabc" hidden>
+<section class="card"><h2>Accords et transposition</h2>
+ <div class="help" style="margin:0 0 12px">Accords du morceau (détectés à partir du MIDI, comme dans l'onglet « Partition »), dans l'ordre, avec les paroles chantées dessus. Changer le ton <b>transpose tous les accords</b> et les claviers de piano. Rien n'est modifié dans les fichiers : c'est un affichage.</div>
+ <div class="row"><label><b>Morceau</b> <select id="csel"></select></label>
+  <span id="corig" class="muted"></span></div>
+ <div class="row" style="margin-top:10px"><b>Ton</b><button class="sec" id="cdown" title="Un demi-ton plus bas">− ½ ton</button>
+  <select id="ckey"></select><button class="sec" id="cup" title="Un demi-ton plus haut">+ ½ ton</button>
+  <button class="sec" id="creset">Ton d'origine</button><span id="cshift" class="muted"></span>
+  <button class="sec" id="cpdf" title="Ouvre la fenêtre d'impression : choisir « Enregistrer au format PDF ».">Générer le PDF</button></div>
+ <div id="cplay" hidden style="margin:10px 0"><audio controls preload="metadata" id="caudio" style="width:100%"></audio>
+  <p class="muted" style="margin:4px 0 0">Le morceau d'origine est joué (dans son ton d'origine) ; l'accord en cours est entouré en rouge. Cliquer sur une carte de la grille pour s'y rendre.</p></div>
+ <p id="cinfo" class="muted"></p>
+ <div id="cbody"></div>
 </section></div>
 <div id="tab-meta" class="tabc" hidden>
 <section class="card"><h2>Éditeur de métadonnées</h2>
@@ -270,6 +286,55 @@ async function scorePdf(){if(!sinfo)return;const b=$('spdf'),box=$('sprint'),old
  }catch(e){box.innerHTML='';box.removeAttribute('style');$('sinfo').textContent='Erreur PDF : '+e.message}
  finally{b.disabled=false;b.textContent=old}}
 $('spdf').onclick=scorePdf;
+// ----- Accords / transposition -----
+const SH=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'],FL=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+let cinfo=null,cshift=0,cnow=-1,cnames={};
+const cTonic=()=>{const [n,m]=cinfo.tonalite.split(' ');const pc=Math.max(SH.indexOf(n),FL.indexOf(n));return {pc,minor:m==='minor'}};
+// armure du ton cible : bémols pour les tons à bémols, dièses sinon
+function cFlats(pc,minor){return (minor?[0,2,3,5,7,10]:[1,3,5,8,10]).includes(pc)}
+function cNames(){const t=cTonic(),pc=(t.pc+cshift)%12,fl=cFlats(pc,t.minor);return {pc,minor:t.minor,names:fl?FL:SH}}
+const cName=(root,suf,N)=>N[(root+cshift)%12]+suf;
+async function chordsList(){const t=(await (await fetch('/api/midi/tracks')).json()).filter(x=>x.midi),s=$('csel'),cur=s.value;t.forEach(x=>cnames[x.stem]=x.name);
+ s.innerHTML=t.map(x=>`<option value="${esc(x.stem)}">${esc(x.stem)}</option>`).join('');if(cur&&t.some(x=>x.stem===cur))s.value=cur;
+ if(t.length)chordsLoad();else{cinfo=null;$('cbody').innerHTML='<p class="muted">Aucun MIDI généré. Générez-en un dans l\'onglet « Génération MIDI ».</p>';$('cinfo').textContent=''}}
+async function chordsLoad(){$('cinfo').textContent='Chargement des accords…';$('cbody').innerHTML='';
+ const r=await fetch('/api/score/'+encodeURIComponent($('csel').value));if(!r.ok){cinfo=null;$('cinfo').textContent=(await r.json().catch(()=>({}))).error||'Accords indisponibles';return}
+ cinfo=await r.json();cshift=0;cnow=-1;
+ const au=$('caudio'),nm=cnames[$('csel').value];au.pause();au.src=nm&&(cinfo.accords_seq||[]).some(a=>a.debut!=null)?'/api/audio/'+encodeURIComponent(nm):'';$('cplay').hidden=!au.src;
+ $('corig').textContent=`Ton d'origine (estimé) : ${cinfo.tonalite.replace(' major',' majeur').replace(' minor',' mineur')} · ${cinfo.mesure}`;
+ chordsDraw()}
+function chordsKeyMenu(){const t=cTonic(),cur=(t.pc+cshift)%12;
+ $('ckey').innerHTML=[...Array(12).keys()].map(k=>{const sh=k,pc=(t.pc+sh)%12,nm=cFlats(pc,t.minor)?FL[pc]:SH[pc];
+  return `<option value="${sh}">${nm} ${t.minor?'mineur':'majeur'}${sh?` (${sh<=6?'+'+sh:sh-12})`:' (origine)'}</option>`}).join('');$('ckey').value=cshift}
+function chordsHtmlT(){const N=cNames().names,seq=cinfo.accords_seq||[];
+ const grid=seq.map((a,i)=>`<div class="cc" data-i="${i}" data-k="${a.racine}|${a.suffixe}"><small>mes. ${a.mesure}${a.temps?' · t.'+(a.temps+1):''}</small><b>${esc(cName(a.racine,a.suffixe,N))}</b>${a.paroles?`<i>${esc(a.paroles)}</i>`:''}</div>`).join('');
+ const sum={};seq.forEach(a=>{const k=a.racine+'|'+a.suffixe,c=sum[k]||(sum[k]={k,nom:cName(a.racine,a.suffixe,N),notes:a.intervalles.map(i=>(a.racine+i+cshift)%12),fois:0,temps:0});c.fois++;c.temps+=a.duree});
+ const rs=Object.values(sum).sort((x,y)=>y.temps-x.temps);
+ return `<div class="chh">Accords dans l'ordre du morceau</div><div class="cgrid">${grid}</div>`+
+  `<div class="chh">Accords distincts (du plus joué au moins joué)</div><div class="chs">`+rs.map(c=>`<div class="ch" data-k="${c.k}">${esc(c.nom)}${pianoSvg(c.notes)}<small>${c.fois}× · ${c.temps} temps</small></div>`).join('')+'</div>'}
+function chordsDraw(){if(!cinfo)return;const n=cNames(),t=cTonic();
+ $('cshift').textContent=cshift?`${cshift<=6?'+'+cshift:cshift-12} demi-ton${cshift===1||cshift===11?'':'s'}`:'';
+ $('cinfo').textContent=`Ton affiché : ${n.names[n.pc]} ${n.minor?'mineur':'majeur'} · ${(cinfo.accords_seq||[]).length} changements d'accord`;
+ chordsKeyMenu();$('cbody').innerHTML=chordsHtmlT();cnow=-1;chordsMark()}
+function chordsPdf(){if(!cinfo)return;const n=cNames(),box=$('sprint');
+ box.innerHTML=`<div class="cpdf"><h1>${esc($('csel').value)}</h1><p>Ton : ${n.names[n.pc]} ${n.minor?'mineur':'majeur'}${cshift?` (transposé de ${cshift<=6?'+'+cshift:cshift-12} demi-tons, ton d'origine ${esc(cinfo.tonalite)})`:' (ton d\'origine)'}</p>${chordsHtmlT()}</div>`;
+ const done=()=>{box.innerHTML='';window.removeEventListener('afterprint',done)};window.addEventListener('afterprint',done);window.print()}
+$('csel').onchange=chordsLoad;$('ckey').onchange=()=>{cshift=+$('ckey').value;chordsDraw()};
+$('cup').onclick=()=>{cshift=(cshift+1)%12;chordsDraw()};$('cdown').onclick=()=>{cshift=(cshift+11)%12;chordsDraw()};
+$('creset').onclick=()=>{cshift=0;chordsDraw()};$('cpdf').onclick=chordsPdf;
+// Accord en cours : dernier accord dont le début est passé ; on entoure sa carte de la grille et la carte d'accord distinct correspondante.
+function chordsMark(){const seq=cinfo&&cinfo.accords_seq;if(!seq)return;const t=$('caudio').currentTime;let i=-1;
+ for(let j=0;j<seq.length;j++){if(seq[j].debut!=null&&seq[j].debut<=t)i=j;else if(seq[j].debut!=null)break}
+ if(i>=0&&seq[i].fin!=null&&t>=seq[i].fin&&(i+1>=seq.length||seq[i+1].debut==null))i=-1;
+ if(i===cnow)return;cnow=i;
+ document.querySelectorAll('#cbody .now').forEach(e=>e.classList.remove('now'));
+ if(i<0)return;const k=seq[i].racine+'|'+seq[i].suffixe,g=document.querySelector(`#cbody .cc[data-i="${i}"]`);
+ if(g){g.classList.add('now');if(!$('caudio').paused)g.scrollIntoView({block:'nearest',behavior:'smooth'})}
+ const d=document.querySelector(`#cbody .ch[data-k="${k}"]`);if(d)d.classList.add('now')}
+$('caudio').addEventListener('timeupdate',chordsMark);$('caudio').addEventListener('seeked',chordsMark);
+$('cbody').addEventListener('click',e=>{const c=e.target.closest('.cc');if(!c||!cinfo)return;const a=cinfo.accords_seq[+c.dataset.i];
+ if(a&&a.debut!=null&&!$('cplay').hidden){$('caudio').currentTime=Math.max(0,a.debut);$('caudio').play()}});
+document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.t==='chords')chordsList()}));
 // Positions du curseur OSMD pour chaque instant de la page affichée : on parcourt le curseur une fois, puis on place nous-mêmes la barre.
 function buildStops(last){
  stops=[];if(!sinfo.grille)return;
