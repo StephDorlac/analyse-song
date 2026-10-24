@@ -39,7 +39,7 @@ Le navigateur s'ouvre sur http://127.0.0.1:5000 (autre port : `PORT=5050 ./ui.sh
 
 | Onglet | Que faire |
 |---|---|
-| **Analyse des instruments** | Glisser des MP3/WAV, cocher les morceaux, régler le *seuil de confiance*, « Analyser la sélection ». Le bouton **▶ Écouter** joue le morceau, **Voir** affiche le rapport (instruments, paroles, pistes séparées à écouter). |
+| **Analyse des instruments** | Glisser des MP3/WAV, cocher les morceaux, régler le *seuil de confiance*, « Analyser la sélection ». Le bouton **▶ Écouter** joue le morceau, **Voir** affiche le rapport (instruments, paroles, pistes séparées à écouter) ; chaque piste séparée (voix, batterie, basse, autres) se télécharge en **wav ou mp3**, ou toutes ensemble en zip. |
 | **Génération MIDI** | Choisir des morceaux déjà analysés, le timing (quantifié ou brut), l'instrument de la piste « autres », puis « Générer ». Télécharger le `.mid`. |
 | **Partition** | Choisir le morceau, le nombre de mesures par page, la taille, les portées affichées. Le lecteur joue le morceau d'origine : la barre rouge suit la position et les pages tournent automatiquement (décocher pour garder la page fixe). |
 | **Métadonnées** | Modifier/supprimer des champs, « Enregistrer une copie corrigée » puis la télécharger. Le fichier d'origine n'est jamais modifié. |

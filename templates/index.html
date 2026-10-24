@@ -159,7 +159,9 @@ async function show(stem){const r=await (await fetch('/api/report/'+encodeURICom
  $('rb').innerHTML=`<dl class="meta"><dt>Durée</dt><dd>${dur}</dd><dt>Format</dt><dd>${m.codec}, ${m.echantillonnage_hz} Hz, ${m.canaux} canaux</dd>${tags}</dl>
  <p><a href="/api/report/${encodeURIComponent(stem)}/md">Télécharger le rapport (.md)</a></p>
  <details><summary><b>Écouter les pistes séparées</b></summary>
-  ${['vocals','drums','bass','other'].map(p=>`<div class="muted" style="margin-top:8px">${p}</div><audio controls preload="none" src="/api/stem/${encodeURIComponent(stem)}/${p}" style="width:100%"></audio>`).join('')}</details>
+  ${['vocals','drums','bass','other'].map(p=>`<div class="muted" style="margin-top:8px">${p}</div><audio controls preload="none" src="/api/stem/${encodeURIComponent(stem)}/${p}" style="width:100%"></audio>
+   <a href="/api/stem/${encodeURIComponent(stem)}/${p}/download?format=wav">.wav</a> · <a href="/api/stem/${encodeURIComponent(stem)}/${p}/download?format=mp3">.mp3</a>`).join('')}
+  <p>Tout télécharger (zip) : <a href="/api/stem/${encodeURIComponent(stem)}/zip?format=wav">wav</a> · <a href="/api/stem/${encodeURIComponent(stem)}/zip?format=mp3">mp3</a></p></details>
  <div id="lyr-box"></div>
  <div class="tabs" id="tabs"></div><div id="tb"></div>
  <p class="muted">Seuil ${r.seuil}. « Source » = mix ou piste Demucs où le score est le meilleur ; un instrument vu seulement sur une piste isolée est moins sûr.</p>`;

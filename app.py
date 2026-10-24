@@ -1,8 +1,8 @@
 """Interface web locale (http://127.0.0.1:5000). Lancée par ui.sh."""
-import json, os, re, shutil, subprocess, threading, traceback
+import io, json, os, re, shutil, subprocess, threading, traceback, zipfile
 from types import SimpleNamespace
 from pathlib import Path
-from flask import Flask, jsonify, request, render_template, send_from_directory, abort
+from flask import Flask, jsonify, request, render_template, send_file, send_from_directory, abort
 
 import analyse
 import midi
@@ -97,6 +97,48 @@ def stem_play(stem, piste):
     if piste not in ("vocals", "drums", "bass", "other"):
         abort(404)
     return send_from_directory(OUTPUT / Path(stem).name / "stems", f"{piste}.wav")
+
+
+STEM_LABELS = {"vocals": "voix", "bass": "basse", "drums": "batterie", "other": "autres"}
+
+
+def stem_export(stem, piste, fmt):
+    """Chemin de la piste Demucs au format demandé ; le mp3 est encodé à la demande puis gardé en cache."""
+    wav = OUTPUT / stem / "stems" / f"{piste}.wav"
+    if piste not in STEM_LABELS or fmt not in ("wav", "mp3") or not wav.exists():
+        abort(404)
+    if fmt == "wav":
+        return wav
+    mp3 = wav.with_suffix(".mp3")
+    if not mp3.exists() or mp3.stat().st_mtime < wav.stat().st_mtime:
+        tmp = mp3.with_name("tmp_" + mp3.name)
+        r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(wav), "-codec:a", "libmp3lame", "-b:a", "320k", "-f", "mp3", str(tmp)],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            tmp.unlink(missing_ok=True)
+            abort(500, r.stderr.strip()[-300:])
+        tmp.replace(mp3)
+    return mp3
+
+
+@app.get("/api/stem/<stem>/<piste>/download")
+def stem_download(stem, piste):
+    """Télécharge une piste séparée en wav ou mp3 (?format=mp3)."""
+    stem, fmt = Path(stem).name, request.args.get("format", "wav")
+    f = stem_export(stem, piste, fmt)
+    return send_from_directory(f.parent, f.name, as_attachment=True, download_name=f"{stem} - {STEM_LABELS[piste]}.{fmt}")
+
+
+@app.get("/api/stem/<stem>/zip")
+def stem_zip(stem):
+    """Toutes les pistes séparées dans un zip (?format=wav|mp3)."""
+    stem, fmt = Path(stem).name, request.args.get("format", "wav")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:  # wav/mp3 sont déjà compacts ou incompressibles
+        for piste, label in STEM_LABELS.items():
+            z.write(stem_export(stem, piste, fmt), f"{stem} - {label}.{fmt}")
+    buf.seek(0)
+    return send_file(buf, mimetype="application/zip", as_attachment=True, download_name=f"{stem} - pistes.{fmt}.zip")
 
 
 @app.post("/api/upload")
