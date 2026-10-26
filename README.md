@@ -40,7 +40,7 @@ Le navigateur s'ouvre sur http://127.0.0.1:5000 (autre port : `PORT=5050 ./ui.sh
 | Onglet | Que faire |
 |---|---|
 | **Analyse des instruments** | Glisser des MP3/WAV, cocher les morceaux, régler le *seuil de confiance*, « Analyser la sélection ». Le bouton **▶ Écouter** joue le morceau, **Voir** affiche le rapport (instruments, paroles, pistes séparées à écouter) ; chaque piste séparée (voix, batterie, basse, autres) se télécharge en **wav ou mp3**, ou toutes ensemble en zip. |
-| **Génération MIDI** | Choisir des morceaux déjà analysés, le timing (quantifié ou brut), l'instrument de la piste « autres », puis « Générer ». Télécharger le `.mid`. |
+| **Génération MIDI** | Choisir des morceaux déjà analysés, le timing (quantifié ou brut), l'instrument de la piste « autres », puis « Générer ». Télécharger le `.mid`. **Export .sty** : style Yamaha pour DGX-670 (batterie, basse et guitare/harmonie de la piste « autres », avec l'instrument GM choisi ; Intro A/B, Main A/B, Fill In AA/BB, Ending A/B tirés du morceau ; basse et harmonie ramenées sur l'accord Cmaj7). Copier le `.sty` sur clé USB. |
 | **Partition** | Choisir le morceau, le nombre de mesures par page, la taille, les portées affichées. Le lecteur joue le morceau d'origine : la barre rouge suit la position et les pages tournent automatiquement (décocher pour garder la page fixe). |
 | **Accords** | Grille des accords du morceau (mesure par mesure, avec les paroles chantées) et claviers de piano des accords distincts. Choisir un autre **ton** (menu ou ± ½ ton) transpose tous les accords ; « Générer le PDF » imprime le résultat. Nécessite un MIDI généré. |
 | **Métadonnées** | Modifier/supprimer des champs, « Enregistrer une copie corrigée » puis la télécharger. Le fichier d'origine n'est jamais modifié. |
@@ -68,7 +68,7 @@ output/<morceau>/
   rapport.md / .json   instruments détectés (confiance, % du temps, piste)
   paroles.txt / .json  paroles, avec horodatage par mot
   stems/               voix, batterie, basse, autres (WAV)
-  midi/                <morceau>.mid, controle.wav, partition.musicxml
+  midi/                <morceau>.mid, <morceau>.sty, controle.wav, partition.musicxml
   metadata_edit/       copie avec métadonnées corrigées
 output/synthese.md     comparaison de tous les morceaux
 ```

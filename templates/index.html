@@ -207,10 +207,13 @@ async function loadMidi(){mtracks=await (await fetch('/api/midi/tracks')).json()
 function drawMidi(){
  $('mtracks').innerHTML=mtracks.length?mtracks.map(t=>`<div class="track"><input type="checkbox" data-n="${esc(t.name)}" ${msel.has(t.name)?'checked':''}>
  <span class="n">${esc(t.name)}</span><span class="tag ${t.midi?'ok':''}">${t.midi?'MIDI généré':'pas de MIDI'}</span>
- ${t.midi?`<button class="sec" data-v="${esc(t.stem)}">Voir</button><a href="/api/midi/${encodeURIComponent(t.stem)}/file"><button class="sec" type="button">Télécharger .mid</button></a><button class="sec danger" data-d="${esc(t.stem)}">Supprimer</button>`:''}</div>`).join('')
+ ${t.midi?`<button class="sec" data-v="${esc(t.stem)}">Voir</button><a href="/api/midi/${encodeURIComponent(t.stem)}/file"><button class="sec" type="button">Télécharger .mid</button></a><button class="sec" data-s="${esc(t.stem)}" title="Style Yamaha DGX-670 : batterie, basse, guitare ; Intro, Main, Fill In, Ending">Export .sty</button><button class="sec danger" data-d="${esc(t.stem)}">Supprimer</button>`:''}</div>`).join('')
  :'<p class="muted">Aucun morceau analysé. Analysez d\'abord un morceau dans l\'onglet « Analyse des instruments ».</p>';
  $('mtracks').querySelectorAll('input').forEach(c=>c.onchange=()=>{c.checked?msel.add(c.dataset.n):msel.delete(c.dataset.n);$('mgo').disabled=!msel.size});
  $('mtracks').querySelectorAll('button[data-v]').forEach(b=>b.onclick=()=>showMidi(b.dataset.v));
+ $('mtracks').querySelectorAll('button[data-s]').forEach(b=>b.onclick=async()=>{const r=await fetch('/api/style/'+encodeURIComponent(b.dataset.s)+'/file');
+  if(!r.ok){$('mmsg').textContent=(await r.json()).error;return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download=b.dataset.s+'.sty';a.click();URL.revokeObjectURL(a.href)});
  $('mtracks').querySelectorAll('button[data-d]').forEach(b=>b.onclick=async()=>{if(!confirm('Supprimer le fichier MIDI de « '+b.dataset.d+' » ?'))return;
   await fetch('/api/midi/'+encodeURIComponent(b.dataset.d),{method:'DELETE'});$('mres').hidden=true;await loadMidi()});
  $('mgo').disabled=!msel.size}

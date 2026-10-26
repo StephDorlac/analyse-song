@@ -8,6 +8,7 @@ import analyse
 import midi
 import paroles
 import score
+import style
 
 ROOT = Path(__file__).resolve().parent
 INPUT, OUTPUT = ROOT / "input", ROOT / "output"
@@ -236,6 +237,21 @@ def midi_report(stem):
 def midi_file(stem):
     stem = Path(stem).name
     return send_from_directory(midi_dir(stem), f"{stem}.mid", as_attachment=True, download_name=f"{stem}.mid")
+
+
+@app.get("/api/style/<stem>/file")
+def style_file(stem):
+    """Génère (à chaque appel) le style Yamaha .sty du morceau à partir de son MIDI, puis le télécharge."""
+    stem = Path(stem).name
+    d = midi_dir(stem)
+    if not (d / f"{stem}.mid").exists():
+        abort(404)
+    try:
+        bars = min(max(int(request.args.get("mesures", 4)), 2), 8)
+        style.build_style(d, stem, d / f"{stem}.sty", bars)
+    except ValueError as e:
+        return jsonify(error=str(e)), 422
+    return send_from_directory(d, f"{stem}.sty", as_attachment=True, download_name=f"{stem}.sty")
 
 
 @app.get("/api/midi/<stem>/audio")
